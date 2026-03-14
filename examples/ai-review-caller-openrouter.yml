@@ -1,4 +1,4 @@
-name: ai-code-review-legacy-zhipu
+name: ai-code-review-openrouter
 
 on:
   pull_request:
@@ -10,7 +10,7 @@ on:
       - "feature/**"
 
 concurrency:
-  group: ai-code-review-${{ github.workflow }}-${{ github.ref }}
+  group: ai-code-review-openrouter-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -19,14 +19,14 @@ permissions:
 
 jobs:
   review:
-    # Legacy/backward-compatible path (Zhipu).
-    uses: marcopared/gh-reusable-workflows/.github/workflows/ai-code-review.yml@v1
+    uses: marcopared/gh-reusable-workflows/.github/workflows/ai-code-review-openrouter.yml@v1
     permissions:
       contents: read
       pull-requests: write
     with:
-      model: glm-5
-      api_base: https://api.z.ai/api/paas/v4
+      # Set this to your exact OpenRouter GLM-5 model ID.
+      model: your-openrouter-glm5-model-id
+      api_base: https://openrouter.ai/api/v1
       max_files: 25
       max_patch_chars: 120000
       post_pr_comment: true
@@ -34,5 +34,7 @@ jobs:
       min_block_severity: high
       min_block_confidence: high
       extra_review_instructions: ""
+      http_referer: ""
+      x_title: ""
     secrets:
-      zhipu_api_key: ${{ secrets.ZHIPU_API_KEY }}
+      openrouter_api_key: ${{ secrets.OPENROUTER_API_KEY }}

@@ -1,4 +1,4 @@
-name: ai-code-review-legacy-zhipu
+name: ai-code-review-zhipu
 
 on:
   pull_request:
@@ -10,7 +10,7 @@ on:
       - "feature/**"
 
 concurrency:
-  group: ai-code-review-${{ github.workflow }}-${{ github.ref }}
+  group: ai-code-review-zhipu-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -19,8 +19,7 @@ permissions:
 
 jobs:
   review:
-    # Legacy/backward-compatible path (Zhipu).
-    uses: marcopared/gh-reusable-workflows/.github/workflows/ai-code-review.yml@v1
+    uses: marcopared/gh-reusable-workflows/.github/workflows/ai-code-review-zhipu.yml@v1
     permissions:
       contents: read
       pull-requests: write

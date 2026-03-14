@@ -304,8 +304,8 @@ function normalizeFinding(item) {
   const body = String(item.body ?? "").trim();
   if (!path || !title || !body) return null;
 
-  const lineRaw = Number.parseInt(String(item.line ?? "1"), 10);
-  const line = Number.isFinite(lineRaw) && lineRaw > 0 ? lineRaw : 1;
+  const lineRaw = Number.parseInt(String(item.line ?? ""), 10);
+  const line = Number.isFinite(lineRaw) && lineRaw > 0 ? lineRaw : null;
 
   const severity = clampEnum(item.severity, ALLOWED_SEVERITY, "low");
   const confidence = clampEnum(item.confidence, ALLOWED_CONFIDENCE, "low");
@@ -416,7 +416,9 @@ function buildReviewMarkdown({
       if (list.length === 0) continue;
       lines.push(`**${category}** (${list.length})`);
       for (const finding of list) {
-        const scope = `\`${escapeMarkdown(finding.path)}:${finding.line}\``;
+        const scope = finding.line
+          ? `\`${escapeMarkdown(finding.path)}:${finding.line}\``
+          : `\`${escapeMarkdown(finding.path)}\``;
         const level = `${finding.severity}/${finding.confidence}`;
         const blockingTag = finding.blocking ? " **[blocking]**" : "";
         lines.push(`- [${level}] ${scope} - **${escapeMarkdown(finding.title)}**${blockingTag}`);
@@ -482,6 +484,8 @@ async function runModelReview({
   eventType,
   boundedFiles,
   extraReviewInstructions,
+  httpReferer,
+  xTitle,
 }) {
   const systemPrompt = [
     "You are a senior code reviewer for CI.",
@@ -522,12 +526,20 @@ async function runModelReview({
     required_output_schema: requiredSchema,
   };
 
+  const headers = {
+    Authorization: `Bearer ${apiKey}`,
+    "Content-Type": "application/json",
+  };
+  if (httpReferer) {
+    headers["HTTP-Referer"] = httpReferer;
+  }
+  if (xTitle) {
+    headers["X-Title"] = xTitle;
+  }
+
   const response = await fetch(`${apiBase.replace(/\/$/, "")}/chat/completions`, {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
+    headers,
     body: JSON.stringify({
       model,
       temperature: 0,
@@ -566,7 +578,10 @@ async function runModelReview({
 async function main() {
   const githubToken = getInput("github_token");
   const zhipuApiKey = getInput("zhipu_api_key");
-  const model = getInput("model", "glm-5");
+  const openrouterApiKey = getInput("openrouter_api_key");
+  const selectedApiKey = zhipuApiKey || openrouterApiKey;
+  const rawModel = getInput("model", "");
+  const model = rawModel || (openrouterApiKey ? "" : "glm-5");
   const apiBase = getInput("api_base", "https://api.z.ai/api/paas/v4");
   const maxFiles = parsePositiveInt(getInput("max_files", "25"), 25);
   const maxPatchChars = parsePositiveInt(getInput("max_patch_chars", "120000"), 120000);
@@ -575,13 +590,20 @@ async function main() {
   const minBlockSeverity = clampEnum(getInput("min_block_severity", "high"), ALLOWED_SEVERITY, "high");
   const minBlockConfidence = clampEnum(getInput("min_block_confidence", "high"), ALLOWED_CONFIDENCE, "high");
   const extraReviewInstructions = getInput("extra_review_instructions", "");
+  const httpReferer = getInput("http_referer", "").trim();
+  const xTitle = getInput("x_title", "").trim();
 
   const repository = process.env.GITHUB_REPOSITORY || "";
   const eventName = process.env.GITHUB_EVENT_NAME || "";
   const eventPath = process.env.GITHUB_EVENT_PATH || "";
 
   if (!githubToken) throw new Error("Missing required input: github_token");
-  if (!zhipuApiKey) throw new Error("Missing required input: zhipu_api_key");
+  if (!selectedApiKey) {
+    throw new Error("Missing required API key input: zhipu_api_key or openrouter_api_key.");
+  }
+  if (openrouterApiKey && !model) {
+    throw new Error("Missing required input: model (OpenRouter model ID).");
+  }
   if (!repository.includes("/")) throw new Error("GITHUB_REPOSITORY is not set correctly.");
   if (!eventPath || !existsSync(eventPath)) throw new Error("GITHUB_EVENT_PATH is missing or invalid.");
 
@@ -612,12 +634,14 @@ async function main() {
   if (boundedFiles.included_files > 0) {
     const modelResult = await runModelReview({
       apiBase,
-      apiKey: zhipuApiKey,
+      apiKey: selectedApiKey,
       model,
       repo: repository,
       eventType: isPr ? "pull_request" : "push",
       boundedFiles,
       extraReviewInstructions,
+      httpReferer,
+      xTitle,
     });
     modelSummary = modelResult.summary.trim();
     normalizedFindings = dedupeFindings(

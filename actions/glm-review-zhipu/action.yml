@@ -1,5 +1,5 @@
-name: glm-review
-description: Legacy wrapper for Zhipu bounded AI code review.
+name: glm-review-zhipu
+description: Zhipu provider path for bounded AI code review.
 
 inputs:
   github_token:
@@ -73,4 +73,4 @@ runs:
         INPUT_MIN_BLOCK_SEVERITY: ${{ inputs.min_block_severity }}
         INPUT_MIN_BLOCK_CONFIDENCE: ${{ inputs.min_block_confidence }}
         INPUT_EXTRA_REVIEW_INSTRUCTIONS: ${{ inputs.extra_review_instructions }}
-      run: node "${GITHUB_ACTION_PATH}/../glm-review-zhipu/index.mjs"
+      run: node "${GITHUB_ACTION_PATH}/index.mjs"
