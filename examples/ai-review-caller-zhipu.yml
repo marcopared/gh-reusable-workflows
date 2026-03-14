@@ -24,6 +24,7 @@ jobs:
       contents: read
       pull-requests: write
     with:
+      workflow_repo_ref: main
       model: glm-5
       api_base: https://api.z.ai/api/paas/v4
       max_files: 25

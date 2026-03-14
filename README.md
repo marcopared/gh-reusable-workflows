@@ -47,6 +47,7 @@ If `pull-requests: write` is missing, review still runs and step summary is writ
 
 ### Shared review-policy and bounding inputs
 
+- `workflow_repo_ref` (default `main`): ref used for internal checkout of `marcopared/gh-reusable-workflows`
 - `max_files` (default `25`)
 - `max_patch_chars` (default `120000`)
 - `post_pr_comment` (default `true`)
@@ -68,6 +69,17 @@ If `pull-requests: write` is missing, review still runs and step summary is writ
 - `x_title` (optional, default empty)
 
 OpenRouter uses an OpenAI-compatible chat completions endpoint: `${api_base}/chat/completions`.
+
+### Reusable workflow ref vs internal checkout ref
+
+- `uses: marcopared/gh-reusable-workflows/.github/workflows/...@v1` controls which reusable workflow definition GitHub loads.
+- `with.workflow_repo_ref` controls which ref is checked out **inside** the reusable workflow at `.ai-code-review-workflow`.
+
+Recommended values:
+
+- `main` for immediate testing
+- `v1` for release alignment
+- commit SHA for strict pinning
 
 ## OpenRouter model ID note
 
@@ -121,6 +133,7 @@ jobs:
       contents: read
       pull-requests: write
     with:
+      workflow_repo_ref: main
       model: your-openrouter-glm5-model-id
       api_base: https://openrouter.ai/api/v1
       max_files: 25
@@ -162,6 +175,7 @@ jobs:
       contents: read
       pull-requests: write
     with:
+      workflow_repo_ref: main
       model: glm-5
       api_base: https://api.z.ai/api/paas/v4
       max_files: 25
@@ -187,19 +201,21 @@ Equivalent files are in:
 
 1. Add secret `OPENROUTER_API_KEY` in caller repo.
 2. Add the OpenRouter caller workflow.
-3. Set `with.model` to your exact OpenRouter GLM-5 model ID.
-4. Open a PR and verify:
+3. Set `with.workflow_repo_ref` (`main` for testing, `v1` for release usage).
+4. Set `with.model` to your exact OpenRouter GLM-5 model ID.
+5. Open a PR and verify:
    - workflow executes
    - step summary appears
    - sticky PR comment is created/updated
-5. Add the workflow check as required in branch protection.
+6. Add the workflow check as required in branch protection.
 
 ### Zhipu setup
 
 1. Add secret `ZHIPU_API_KEY` in caller repo.
 2. Add the Zhipu caller workflow.
-3. Open a PR and verify behavior.
-4. Add the workflow check as required in branch protection.
+3. Set `with.workflow_repo_ref` (`main` for testing, `v1` for release usage).
+4. Open a PR and verify behavior.
+5. Add the workflow check as required in branch protection.
 
 ## Behavior guarantees
 

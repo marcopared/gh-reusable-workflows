@@ -24,6 +24,7 @@ jobs:
       contents: read
       pull-requests: write
     with:
+      workflow_repo_ref: main
       # Set this to your exact OpenRouter GLM-5 model ID.
       model: your-openrouter-glm5-model-id
       api_base: https://openrouter.ai/api/v1

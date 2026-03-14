@@ -19,6 +19,56 @@ const BLOCKABLE_CATEGORIES = new Set(["correctness", "security"]);
 const GITHUB_API_BASE = "https://api.github.com";
 const MAX_FILE_CONTENT_CHARS = 4000;
 const MAX_FINDINGS_RENDER = 60;
+const OPENROUTER_HOST_PATTERN = /(^https?:\/\/)?([^/]*\.)?openrouter\.ai(\/|$)/i;
+
+const MODEL_OUTPUT_JSON_SCHEMA = {
+  name: "ai_code_review",
+  strict: true,
+  schema: {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      summary: { type: "string" },
+      findings: {
+        type: "array",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            path: { type: "string" },
+            line: { type: ["integer", "null"] },
+            severity: { enum: ["low", "medium", "high", "critical"] },
+            confidence: { enum: ["low", "medium", "high"] },
+            category: {
+              enum: [
+                "correctness",
+                "security",
+                "reliability",
+                "performance",
+                "maintainability",
+                "testing",
+              ],
+            },
+            title: { type: "string" },
+            body: { type: "string" },
+            suggestion: { type: "string" },
+          },
+          required: [
+            "path",
+            "line",
+            "severity",
+            "confidence",
+            "category",
+            "title",
+            "body",
+            "suggestion",
+          ],
+        },
+      },
+    },
+    required: ["summary", "findings"],
+  },
+};
 
 function getInput(name, fallback = "") {
   const value = process.env[`INPUT_${name.toUpperCase()}`];
@@ -286,14 +336,36 @@ function toChatContentString(messageContent) {
 function parseModelJson(raw) {
   const text = String(raw ?? "").trim();
   if (!text) throw new Error("Model returned empty content.");
-  if (text.startsWith("```")) {
-    throw new Error("Model output must be raw JSON without markdown code fences.");
+
+  const candidates = [text];
+  const fencedMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+  if (fencedMatch?.[1]) {
+    candidates.push(fencedMatch[1].trim());
   }
-  try {
-    return JSON.parse(text);
-  } catch (error) {
-    throw new Error(`Model output is not valid JSON: ${error.message}`);
+
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+    try {
+      return JSON.parse(candidate);
+    } catch {
+      // Continue trying fallback extraction.
+    }
+
+    const firstBrace = candidate.indexOf("{");
+    const lastBrace = candidate.lastIndexOf("}");
+    if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) {
+      continue;
+    }
+
+    const wrapped = candidate.slice(firstBrace, lastBrace + 1);
+    try {
+      return JSON.parse(wrapped);
+    } catch {
+      // Keep trying all candidates before failing.
+    }
   }
+
+  throw new Error("Failed to parse model JSON from response content.");
 }
 
 function normalizeFinding(item) {
@@ -540,17 +612,29 @@ async function runModelReview({
   const response = await fetch(`${apiBase.replace(/\/$/, "")}/chat/completions`, {
     method: "POST",
     headers,
-    body: JSON.stringify({
-      model,
-      temperature: 0,
-      messages: [
-        { role: "system", content: systemPrompt },
-        {
-          role: "user",
-          content: `Return ONLY valid JSON matching required_output_schema. Input:\n${JSON.stringify(userPayload)}`,
-        },
-      ],
-    }),
+    body: JSON.stringify((() => {
+      const requestBody = {
+        model,
+        temperature: 0,
+        messages: [
+          { role: "system", content: systemPrompt },
+          {
+            role: "user",
+            content: `Return ONLY valid JSON matching required_output_schema. Input:\n${JSON.stringify(userPayload)}`,
+          },
+        ],
+      };
+
+      if (OPENROUTER_HOST_PATTERN.test(apiBase)) {
+        requestBody.response_format = {
+          type: "json_schema",
+          json_schema: MODEL_OUTPUT_JSON_SCHEMA,
+        };
+        requestBody.plugins = [{ id: "response-healing" }];
+      }
+
+      return requestBody;
+    })()),
   });
 
   if (!response.ok) {
