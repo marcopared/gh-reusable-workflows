@@ -1,0 +1,37 @@
+name: ai-code-review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  push:
+    branches:
+      - main
+      - develop
+      - "feature/**"
+
+concurrency:
+  group: ai-code-review-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  review:
+    uses: marcopared/gh-reusable-workflows/.github/workflows/ai-code-review.yml@main
+    permissions:
+      contents: read
+      pull-requests: write
+    with:
+      model: glm-5
+      api_base: https://api.z.ai/api/paas/v4
+      max_files: 25
+      max_patch_chars: 120000
+      post_pr_comment: true
+      fail_on_blocking: true
+      min_block_severity: high
+      min_block_confidence: high
+      extra_review_instructions: ""
+    secrets:
+      zhipu_api_key: ${{ secrets.ZHIPU_API_KEY }}

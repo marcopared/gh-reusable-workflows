@@ -1,0 +1,76 @@
+name: glm-review
+description: Bounded AI code review for pull requests and pushes.
+
+inputs:
+  github_token:
+    description: GitHub token for API requests and PR comments.
+    required: true
+  zhipu_api_key:
+    description: API key for GLM-compatible chat-completions API.
+    required: true
+  model:
+    description: GLM model name.
+    required: false
+    default: glm-5
+  api_base:
+    description: GLM-compatible API base URL.
+    required: false
+    default: https://api.z.ai/api/paas/v4
+  max_files:
+    description: Maximum number of changed files to include.
+    required: false
+    default: "25"
+  max_patch_chars:
+    description: Maximum total patch characters to include.
+    required: false
+    default: "120000"
+  post_pr_comment:
+    description: Whether to post or update sticky PR comment.
+    required: false
+    default: "true"
+  fail_on_blocking:
+    description: Whether caller intends to fail on blocking findings.
+    required: false
+    default: "true"
+  min_block_severity:
+    description: Minimum severity threshold for blocking.
+    required: false
+    default: high
+  min_block_confidence:
+    description: Minimum confidence threshold for blocking.
+    required: false
+    default: high
+  extra_review_instructions:
+    description: Extra caller-provided instructions.
+    required: false
+    default: ""
+
+outputs:
+  verdict:
+    description: pass, warn, or fail.
+    value: ${{ steps.run.outputs.verdict }}
+  blocking_count:
+    description: Number of blocking findings.
+    value: ${{ steps.run.outputs.blocking_count }}
+  findings_count:
+    description: Number of normalized findings.
+    value: ${{ steps.run.outputs.findings_count }}
+
+runs:
+  using: composite
+  steps:
+    - id: run
+      shell: bash
+      env:
+        INPUT_GITHUB_TOKEN: ${{ inputs.github_token }}
+        INPUT_ZHIPU_API_KEY: ${{ inputs.zhipu_api_key }}
+        INPUT_MODEL: ${{ inputs.model }}
+        INPUT_API_BASE: ${{ inputs.api_base }}
+        INPUT_MAX_FILES: ${{ inputs.max_files }}
+        INPUT_MAX_PATCH_CHARS: ${{ inputs.max_patch_chars }}
+        INPUT_POST_PR_COMMENT: ${{ inputs.post_pr_comment }}
+        INPUT_FAIL_ON_BLOCKING: ${{ inputs.fail_on_blocking }}
+        INPUT_MIN_BLOCK_SEVERITY: ${{ inputs.min_block_severity }}
+        INPUT_MIN_BLOCK_CONFIDENCE: ${{ inputs.min_block_confidence }}
+        INPUT_EXTRA_REVIEW_INSTRUCTIONS: ${{ inputs.extra_review_instructions }}
+      run: node "${GITHUB_ACTION_PATH}/index.mjs"
