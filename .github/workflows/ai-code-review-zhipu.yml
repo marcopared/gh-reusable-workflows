@@ -48,6 +48,11 @@ on:
         required: false
         type: string
         default: ""
+      workflow_repo_ref:
+        description: Ref of marcopared/gh-reusable-workflows checked out inside this workflow.
+        required: false
+        type: string
+        default: main
     secrets:
       zhipu_api_key:
         description: API key for Zhipu GLM-compatible chat-completions endpoint.
@@ -89,7 +94,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: marcopared/gh-reusable-workflows
-          ref: ${{ github.workflow_sha }}
+          ref: ${{ inputs.workflow_repo_ref }}
           path: .ai-code-review-workflow
 
       - name: Run Zhipu GLM review

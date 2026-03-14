@@ -48,6 +48,11 @@ on:
         required: false
         type: string
         default: ""
+      workflow_repo_ref:
+        description: Ref of marcopared/gh-reusable-workflows checked out inside this workflow.
+        required: false
+        type: string
+        default: main
     secrets:
       zhipu_api_key:
         description: API key for Zhipu GLM-compatible chat-completions endpoint.
@@ -80,5 +85,6 @@ jobs:
       min_block_severity: ${{ inputs.min_block_severity }}
       min_block_confidence: ${{ inputs.min_block_confidence }}
       extra_review_instructions: ${{ inputs.extra_review_instructions }}
+      workflow_repo_ref: ${{ inputs.workflow_repo_ref }}
     secrets:
       zhipu_api_key: ${{ secrets.zhipu_api_key }}
