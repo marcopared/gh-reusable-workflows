@@ -1,0 +1,84 @@
+name: ai-code-review
+
+on:
+  workflow_call:
+    inputs:
+      model:
+        description: GLM model to use for review.
+        required: false
+        type: string
+        default: glm-5
+      api_base:
+        description: Base URL for Zhipu GLM-compatible API.
+        required: false
+        type: string
+        default: https://api.z.ai/api/paas/v4
+      max_files:
+        description: Maximum changed files to review.
+        required: false
+        type: number
+        default: 25
+      max_patch_chars:
+        description: Maximum total patch characters included in prompt.
+        required: false
+        type: number
+        default: 120000
+      post_pr_comment:
+        description: Whether to create or update sticky PR comment.
+        required: false
+        type: boolean
+        default: true
+      fail_on_blocking:
+        description: Whether to fail the check when blocking findings exist.
+        required: false
+        type: boolean
+        default: true
+      min_block_severity:
+        description: Minimum severity required for blocking.
+        required: false
+        type: string
+        default: high
+      min_block_confidence:
+        description: Minimum confidence required for blocking.
+        required: false
+        type: string
+        default: high
+      extra_review_instructions:
+        description: Extra caller-specific review instructions.
+        required: false
+        type: string
+        default: ""
+    secrets:
+      zhipu_api_key:
+        description: API key for Zhipu GLM-compatible chat-completions endpoint.
+        required: true
+    outputs:
+      verdict:
+        description: Final verdict produced by ai-code-review.
+        value: ${{ jobs.legacy-zhipu.outputs.verdict }}
+      blocking_count:
+        description: Number of blocking findings.
+        value: ${{ jobs.legacy-zhipu.outputs.blocking_count }}
+      findings_count:
+        description: Number of total findings.
+        value: ${{ jobs.legacy-zhipu.outputs.findings_count }}
+
+jobs:
+  legacy-zhipu:
+    name: ai-code-review
+    uses: ./.github/workflows/ai-code-review-zhipu.yml
+    permissions:
+      contents: read
+      pull-requests: write
+    with:
+      model: ${{ inputs.model }}
+      api_base: ${{ inputs.api_base }}
+      max_files: ${{ inputs.max_files }}
+      max_patch_chars: ${{ inputs.max_patch_chars }}
+      post_pr_comment: ${{ inputs.post_pr_comment }}
+      fail_on_blocking: ${{ inputs.fail_on_blocking }}
+      min_block_severity: ${{ inputs.min_block_severity }}
+      min_block_confidence: ${{ inputs.min_block_confidence }}
+      extra_review_instructions: ${{ inputs.extra_review_instructions }}
+    secrets:
+      zhipu_api_key: ${{ secrets.zhipu_api_key }}

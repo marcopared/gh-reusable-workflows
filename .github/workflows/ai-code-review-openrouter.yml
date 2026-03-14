@@ -1,0 +1,127 @@
+name: ai-code-review-openrouter
+
+on:
+  workflow_call:
+    inputs:
+      model:
+        description: Exact OpenRouter model ID to use for review.
+        required: true
+        type: string
+      api_base:
+        description: Base URL for OpenRouter OpenAI-compatible API.
+        required: false
+        type: string
+        default: https://openrouter.ai/api/v1
+      max_files:
+        description: Maximum changed files to review.
+        required: false
+        type: number
+        default: 25
+      max_patch_chars:
+        description: Maximum total patch characters included in prompt.
+        required: false
+        type: number
+        default: 120000
+      post_pr_comment:
+        description: Whether to create or update sticky PR comment.
+        required: false
+        type: boolean
+        default: true
+      fail_on_blocking:
+        description: Whether to fail the check when blocking findings exist.
+        required: false
+        type: boolean
+        default: true
+      min_block_severity:
+        description: Minimum severity required for blocking.
+        required: false
+        type: string
+        default: high
+      min_block_confidence:
+        description: Minimum confidence required for blocking.
+        required: false
+        type: string
+        default: high
+      extra_review_instructions:
+        description: Extra caller-specific review instructions.
+        required: false
+        type: string
+        default: ""
+      http_referer:
+        description: Optional OpenRouter HTTP-Referer header.
+        required: false
+        type: string
+        default: ""
+      x_title:
+        description: Optional OpenRouter X-Title header.
+        required: false
+        type: string
+        default: ""
+    secrets:
+      openrouter_api_key:
+        description: API key for OpenRouter.
+        required: true
+    outputs:
+      verdict:
+        description: Final verdict produced by ai-code-review-openrouter.
+        value: ${{ jobs.ai-review.outputs.verdict }}
+      blocking_count:
+        description: Number of blocking findings.
+        value: ${{ jobs.ai-review.outputs.blocking_count }}
+      findings_count:
+        description: Number of total findings.
+        value: ${{ jobs.ai-review.outputs.findings_count }}
+
+jobs:
+  ai-review:
+    name: ai-code-review-openrouter
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    outputs:
+      verdict: ${{ steps.review.outputs.verdict }}
+      blocking_count: ${{ steps.review.outputs.blocking_count }}
+      findings_count: ${{ steps.review.outputs.findings_count }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Checkout reusable workflow repository
+        uses: actions/checkout@v4
+        with:
+          repository: marcopared/gh-reusable-workflows
+          ref: ${{ github.workflow_sha }}
+          path: .ai-code-review-workflow
+
+      - name: Run OpenRouter review
+        id: review
+        uses: ./.ai-code-review-workflow/actions/glm-review-openrouter
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          openrouter_api_key: ${{ secrets.openrouter_api_key }}
+          model: ${{ inputs.model }}
+          api_base: ${{ inputs.api_base }}
+          max_files: ${{ inputs.max_files }}
+          max_patch_chars: ${{ inputs.max_patch_chars }}
+          post_pr_comment: ${{ inputs.post_pr_comment }}
+          fail_on_blocking: ${{ inputs.fail_on_blocking }}
+          min_block_severity: ${{ inputs.min_block_severity }}
+          min_block_confidence: ${{ inputs.min_block_confidence }}
+          extra_review_instructions: ${{ inputs.extra_review_instructions }}
+          http_referer: ${{ inputs.http_referer }}
+          x_title: ${{ inputs.x_title }}
+
+      - name: Fail on blocking findings
+        if: ${{ inputs.fail_on_blocking && steps.review.outputs.verdict == 'fail' }}
+        shell: bash
+        run: |
+          echo "Blocking AI review findings detected."
+          exit 1
