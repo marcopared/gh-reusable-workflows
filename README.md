@@ -16,9 +16,9 @@ This repo currently provides a production-oriented AI code review workflow named
 
 Use this workflow from caller repositories:
 
-- `marcopared/gh-reusable-workflows/.github/workflows/ai-code-review.yml@main`
+- `marcopared/gh-reusable-workflows/.github/workflows/ai-code-review.yml@v1`
 
-Pin to a tag or commit SHA for stricter release control once you version it.
+Use a version tag (or commit SHA) in callers for stable rollout.
 
 ## Required secrets
 
@@ -99,7 +99,7 @@ permissions:
 
 jobs:
   review:
-    uses: marcopared/gh-reusable-workflows/.github/workflows/ai-code-review.yml@main
+    uses: marcopared/gh-reusable-workflows/.github/workflows/ai-code-review.yml@v1
     permissions:
       contents: read
       pull-requests: write

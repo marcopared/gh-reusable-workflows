@@ -1,3 +1,204 @@
+# CODEBASE PACK: gh-reusable-workflows
+
+## MANIFEST
+- Included files: 4
+- Skipped files/directories: 3
+- Total included lines: 948
+- Full files: 4
+- Chunked files: 0
+- Summary files: 0
+
+## READING GUIDE
+Start with these files first:
+1. `README.md` — project overview and setup [full]
+2. `actions/glm-review/index.mjs` — entrypoint [full]
+3. `actions/glm-review/action.yml` — configuration [full]
+4. `examples/ai-review-caller.yml` — configuration [full]
+
+## DIRECTORY TREE
+- actions/
+  - glm-review/
+    - action.yml
+    - index.mjs
+- examples/
+  - ai-review-caller.yml
+- README.md
+
+## FILE INDEX
+| Path | Role | Lines | Chars | Mode |
+|---|---|---:|---:|---|
+| `README.md` | project overview and setup | 139 | 4171 | full |
+| `actions/glm-review/index.mjs` | entrypoint | 696 | 22166 | full |
+| `actions/glm-review/action.yml` | configuration | 76 | 2452 | full |
+| `examples/ai-review-caller.yml` | configuration | 37 | 826 | full |
+
+## SKIPPED ITEMS
+- `.DS_Store` — hidden
+- `.git/` — skipped directory
+- `.github/` — skipped directory
+
+## FILE CONTENT
+
+## FILE: README.md
+- Role: project overview and setup
+- Mode: full
+- Language: markdown
+- Lines: 139
+- Characters: 4171
+
+### Full Content
+```markdown
+# gh-reusable-workflows
+
+Reusable GitHub Actions workflows for repositories under your account.  
+This repo currently provides a production-oriented AI code review workflow named `ai-code-review`.
+
+## What this provides
+
+- Reusable workflow: `.github/workflows/ai-code-review.yml`
+- Local composite action: `actions/glm-review/action.yml`
+- Local Node implementation: `actions/glm-review/index.mjs`
+- Sticky pull request summary comment (single updatable comment)
+- Deterministic local verdict policy: `pass`, `warn`, `fail`
+- Blocking decision made locally (never delegated to model)
+
+## Reusable workflow path
+
+Use this workflow from caller repositories:
+
+- `marcopared/gh-reusable-workflows/.github/workflows/ai-code-review.yml@v1`
+
+Use a version tag (or commit SHA) in callers for stable rollout.
+
+## Required secrets
+
+Caller repositories must provide:
+
+- `ZHIPU_API_KEY`: API key for the GLM-compatible endpoint.
+
+The caller maps this secret into the reusable workflow as:
+
+- `zhipu_api_key: ${{ secrets.ZHIPU_API_KEY }}`
+
+## Required permissions
+
+Caller workflow/job should grant:
+
+- `contents: read` (read repo content and diff context)
+- `pull-requests: write` (create/update sticky PR summary comment)
+
+Without `pull-requests: write`, review still runs and step summary still appears, but PR comment update may be skipped with a warning.
+
+## Supported inputs
+
+All inputs are optional unless noted.
+
+- `model` (string, default: `glm-5`)
+- `api_base` (string, default: `https://api.z.ai/api/paas/v4`)
+- `max_files` (number, default: `25`)
+- `max_patch_chars` (number, default: `120000`)
+- `post_pr_comment` (boolean, default: `true`)
+- `fail_on_blocking` (boolean, default: `true`)
+- `min_block_severity` (string: `low|medium|high|critical`, default: `high`)
+- `min_block_confidence` (string: `low|medium|high`, default: `high`)
+- `extra_review_instructions` (string, default: empty)
+
+Required secret:
+
+- `zhipu_api_key`
+
+## Verdict semantics
+
+The implementation computes verdicts locally from normalized findings:
+
+- `pass`: no findings
+- `warn`: findings exist but none meet blocking policy
+- `fail`: at least one blocking finding
+
+Blocking policy (local, deterministic):
+
+- category must be `correctness` or `security`
+- severity must be `>= min_block_severity`
+- confidence must be `>= min_block_confidence`
+
+The model never decides blocking directly.
+
+## Caller workflow example
+
+Copy this into caller repo as `.github/workflows/ai-review.yml`:
+
+```yaml
+name: ai-code-review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  push:
+    branches:
+      - main
+      - develop
+      - "feature/**"
+
+concurrency:
+  group: ai-code-review-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  review:
+    uses: marcopared/gh-reusable-workflows/.github/workflows/ai-code-review.yml@v1
+    permissions:
+      contents: read
+      pull-requests: write
+    with:
+      model: glm-5
+      api_base: https://api.z.ai/api/paas/v4
+      max_files: 25
+      max_patch_chars: 120000
+      post_pr_comment: true
+      fail_on_blocking: true
+      min_block_severity: high
+      min_block_confidence: high
+      extra_review_instructions: ""
+    secrets:
+      zhipu_api_key: ${{ secrets.ZHIPU_API_KEY }}
+```
+
+An equivalent sample file is included at `examples/ai-review-caller.yml`.
+
+## Setup steps (caller repositories)
+
+1. Add repository secret `ZHIPU_API_KEY`.
+2. Add the caller workflow (example above) and commit it.
+3. Open a PR to verify:
+   - workflow check runs
+   - step summary is generated
+   - sticky PR comment is created/updated once per PR
+4. In GitHub branch protection rules, add this workflow check (`ai-code-review / ai-code-review`) as a required status check.
+
+## Notes on behavior
+
+- Supports `pull_request` and `push` events.
+- Review payload is bounded by changed files and patch size caps.
+- Push mode computes changed files from git diff between `before` and `after`.
+- PR mode fetches changed files via GitHub API and includes limited head content.
+- v1 intentionally does not post inline diff comments.
+- `pull_request_target` is intentionally not used.
+
+```
+
+## FILE: actions/glm-review/index.mjs
+- Role: entrypoint
+- Mode: full
+- Language: js
+- Lines: 696
+- Characters: 22166
+
+### Full Content
+```js
 import { execFileSync } from "node:child_process";
 import { appendFileSync, existsSync, readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
@@ -694,3 +895,145 @@ main().catch((error) => {
   console.error(`ai-code-review failed: ${error.message}`);
   process.exit(1);
 });
+
+```
+
+## FILE: actions/glm-review/action.yml
+- Role: configuration
+- Mode: full
+- Language: yaml
+- Lines: 76
+- Characters: 2452
+
+### Full Content
+```yaml
+name: glm-review
+description: Bounded AI code review for pull requests and pushes.
+
+inputs:
+  github_token:
+    description: GitHub token for API requests and PR comments.
+    required: true
+  zhipu_api_key:
+    description: API key for GLM-compatible chat-completions API.
+    required: true
+  model:
+    description: GLM model name.
+    required: false
+    default: glm-5
+  api_base:
+    description: GLM-compatible API base URL.
+    required: false
+    default: https://api.z.ai/api/paas/v4
+  max_files:
+    description: Maximum number of changed files to include.
+    required: false
+    default: "25"
+  max_patch_chars:
+    description: Maximum total patch characters to include.
+    required: false
+    default: "120000"
+  post_pr_comment:
+    description: Whether to post or update sticky PR comment.
+    required: false
+    default: "true"
+  fail_on_blocking:
+    description: Whether caller intends to fail on blocking findings.
+    required: false
+    default: "true"
+  min_block_severity:
+    description: Minimum severity threshold for blocking.
+    required: false
+    default: high
+  min_block_confidence:
+    description: Minimum confidence threshold for blocking.
+    required: false
+    default: high
+  extra_review_instructions:
+    description: Extra caller-provided instructions.
+    required: false
+    default: ""
+
+outputs:
+  verdict:
+    description: pass, warn, or fail.
+    value: ${{ steps.run.outputs.verdict }}
+  blocking_count:
+    description: Number of blocking findings.
+    value: ${{ steps.run.outputs.blocking_count }}
+  findings_count:
+    description: Number of normalized findings.
+    value: ${{ steps.run.outputs.findings_count }}
+
+runs:
+  using: composite
+  steps:
+    - id: run
+      shell: bash
+      env:
+        INPUT_GITHUB_TOKEN: ${{ inputs.github_token }}
+        INPUT_ZHIPU_API_KEY: ${{ inputs.zhipu_api_key }}
+        INPUT_MODEL: ${{ inputs.model }}
+        INPUT_API_BASE: ${{ inputs.api_base }}
+        INPUT_MAX_FILES: ${{ inputs.max_files }}
+        INPUT_MAX_PATCH_CHARS: ${{ inputs.max_patch_chars }}
+        INPUT_POST_PR_COMMENT: ${{ inputs.post_pr_comment }}
+        INPUT_FAIL_ON_BLOCKING: ${{ inputs.fail_on_blocking }}
+        INPUT_MIN_BLOCK_SEVERITY: ${{ inputs.min_block_severity }}
+        INPUT_MIN_BLOCK_CONFIDENCE: ${{ inputs.min_block_confidence }}
+        INPUT_EXTRA_REVIEW_INSTRUCTIONS: ${{ inputs.extra_review_instructions }}
+      run: node "${GITHUB_ACTION_PATH}/index.mjs"
+
+```
+
+## FILE: examples/ai-review-caller.yml
+- Role: configuration
+- Mode: full
+- Language: yaml
+- Lines: 37
+- Characters: 826
+
+### Full Content
+```yaml
+name: ai-code-review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  push:
+    branches:
+      - main
+      - develop
+      - "feature/**"
+
+concurrency:
+  group: ai-code-review-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  review:
+    uses: marcopared/gh-reusable-workflows/.github/workflows/ai-code-review.yml@v1
+    permissions:
+      contents: read
+      pull-requests: write
+    with:
+      model: glm-5
+      api_base: https://api.z.ai/api/paas/v4
+      max_files: 25
+      max_patch_chars: 120000
+      post_pr_comment: true
+      fail_on_blocking: true
+      min_block_severity: high
+      min_block_confidence: high
+      extra_review_instructions: ""
+    secrets:
+      zhipu_api_key: ${{ secrets.ZHIPU_API_KEY }}
+
+```
+
+## HOW TO USE THIS PACK WITH AN LLM
+Ask the LLM to start from the manifest, reading guide, and file index, then inspect only the relevant files or chunk sections.
